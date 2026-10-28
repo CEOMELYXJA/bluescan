@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>BlueScan — Identifier et contrôler</title>
+<style>
+:root{--bg:#0d1117;--card:#161b22;--bd:#2a313c;--tx:#e6edf3;--mu:#8b949e;--ac:#3b9eff;--ok:#3fb950;--wa:#d29922;--er:#f85149;box-sizing:border-box;padding:env(safe-area-inset-top,0) 0 env(safe-area-inset-bottom,0)}
+@media(prefers-color-scheme:light){:root{--bg:#f5f7fa;--card:#fff;--bd:#d8dee4;--tx:#1f2328;--mu:#59636e}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+main{max-width:760px;margin:auto;padding:16px}
+h1{font-size:22px;margin:4px 0}h2{font-size:15px;margin:0 0 10px;color:var(--mu);text-transform:uppercase;letter-spacing:.05em}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:16px;margin:14px 0}
+button,select,input{font:inherit;color:var(--tx);background:var(--bg);border:1px solid var(--bd);border-radius:10px;padding:10px 14px}
+button{cursor:pointer}button.p{background:var(--ac);border-color:var(--ac);color:#fff;font-weight:600}button:disabled{opacity:.5}
+.big{width:100%;padding:16px;font-size:17px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.sp{justify-content:space-between}
+.hero{display:flex;gap:14px;align-items:center}.ico{font-size:52px}.t{font-size:20px;font-weight:700}
+.mu{color:var(--mu);font-size:13px}.pill{display:inline-block;padding:2px 10px;border-radius:99px;font-size:12px;border:1px solid var(--bd)}
+.pill.ok{color:var(--ok)}.pill.wa{color:var(--wa)}.pill.er{color:var(--er)}
+.bar{height:8px;background:var(--bd);border-radius:9px;overflow:hidden}.bar i{display:block;height:100%;background:var(--ac)}
+dl{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;margin:0}dt{color:var(--mu)}dd{margin:0;word-break:break-all}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
+.par{border:1px solid var(--bd);border-radius:12px;padding:12px}.par b{display:block;margin-bottom:8px}
+.par input[type=range]{width:100%;padding:0}.par input[type=color]{width:100%;height:42px;padding:2px}
+.sw{position:relative;width:52px;height:30px}.sw input{opacity:0;position:absolute;inset:0;z-index:2;cursor:pointer;margin:0}
+.sw span{position:absolute;inset:0;background:var(--bd);border-radius:30px;transition:.2s}
+.sw span:after{content:"";position:absolute;width:24px;height:24px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.2s}
+.sw input:checked+span{background:var(--ok)}.sw input:checked+span:after{transform:translateX(22px)}
+.chars{max-height:320px;overflow:auto;font-size:13px}.ch{border-top:1px solid var(--bd);padding:8px 0}
+code{font-family:ui-monospace,Menlo,monospace;font-size:12px;word-break:break-all}
+pre{margin:0;max-height:180px;overflow:auto;font-size:12px;white-space:pre-wrap}
+dialog{background:var(--card);color:var(--tx);border:1px solid var(--bd);border-radius:14px;max-width:460px;width:92%}
+dialog label{display:block;margin:10px 0 4px;font-size:13px;color:var(--mu)}dialog input,dialog select{width:100%}
+#toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0));transform:translateX(-50%);background:var(--ac);color:#fff;padding:10px 16px;border-radius:12px;display:none;max-width:90%;z-index:9}
+.hid{display:none}
+</style>
+</head>
+<body>
+<main>
+  <h1>📡 BlueScan</h1>
+  <div class="mu">Identifie un appareil Bluetooth, puis ouvre les réglages qui lui correspondent.</div>
+
+  <div id="warn" class="card hid"></div>
+
+  <div class="card">
+    <button class="p big" id="scan">🔍 Rechercher un appareil Bluetooth</button>
+    <div class="row sp" style="margin-top:10px"><span id="st" class="pill">Non connecté</span><button id="disc" class="hid">Déconnecter</button></div>
+  </div>
+
+  <section id="res" class="hid">
+    <div class="card">
+      <div class="hero"><div class="ico" id="ico"></div><div><div class="t" id="tn"></div><div class="mu" id="dn"></div></div></div>
+      <div style="margin:12px 0 4px" class="row sp"><span class="mu">Confiance de l’identification</span><b id="cf"></b></div>
+      <div class="bar"><i id="cb"></i></div>
+      <ul id="ev" class="mu" style="margin:10px 0 0;padding-left:18px"></ul>
+      <div class="row" style="margin-top:12px"><span class="mu">Ce n’est pas le bon type ?</span><select id="ov"></select></div>
+    </div>
+    <div class="card"><h2>Détails de l’appareil</h2><dl id="det"></dl></div>
+    <div class="card"><h2>Réglages — <span id="pt"></span></h2><div class="mu" style="margin-bottom:10px">Chaque fabricant a son propre protocole : configurez une commande une seule fois (⚙️), elle est mémorisée pour cet appareil.</div><div class="grid" id="par"></div></div>
+    <div class="card"><h2>Services et caractéristiques (mode avancé)</h2><div class="chars" id="chs"></div></div>
+    <div class="card"><h2>Journal</h2><pre id="log"></pre></div>
+  </section>
+</main>
+
+<dialog id="dlg"><form method="dialog" id="frm"></form></dialog>
+<div id="toast"></div>
+
+<script>
+'use strict';
+const $=s=>document.querySelector(s);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const BASE='-0000-1000-8000-00805f9b34fb';
+const full=u=>/^[0-9a-f]{4}$/i.test(u)?('0000'+u.toLowerCase()+BASE):u.toLowerCase();
+const short=u=>(u.startsWith('0000')&&u.endsWith(BASE))?u.slice(4,8):u;
+const hex2=n=>Math.max(0,Math.min(255,Math.round(n))).toString(16).padStart(2,'0');
+const NUS='6e400001-b5a3-f393-a9bb-50e8d4f2a5c4';
+
+/* ---------- Dictionnaires ---------- */
+const SV={'1800':'Accès générique','1801':'Attributs génériques','180a':'Infos appareil','180f':'Batterie','180d':'Fréquence cardiaque','1812':'Clavier/souris/manette (HID)','1802':'Alerte immédiate','1803':'Perte de lien','1804':'Puissance TX','1816':'Vitesse/cadence vélo','1818':'Puissance vélo','1826':'Machine de fitness','1814':'Course à pied','181a':'Capteurs environnement','1809':'Thermomètre','1810':'Pression artérielle','181d':'Balance','1822':'Oxymètre','1827':'Mesh (provisioning)','1828':'Mesh (proxy)','1843':'Audio : entrée','184e':'Audio : flux','1850':'Audio : capacités','fff0':'Service propriétaire (souvent LED/jouets)','ffe0':'Port série BLE (HM-10)','fe59':'Mise à jour Nordic (DFU)'};
+SV[NUS]='Nordic UART (série)';
+const BLOCK=['1812','fe59','1801','1824'];
+const OPT=Object.keys(SV).filter(k=>!BLOCK.includes(k)).map(k=>k.length===4?parseInt(k,16):k).concat([0xffe5,0xfee7]);
+const APP={1:'Téléphone',2:'Ordinateur',3:'Montre',4:'Horloge',5:'Écran',6:'Télécommande',7:'Lunettes',8:'Tag',9:'Porte-clés',10:'Lecteur multimédia',12:'Thermomètre',13:'Capteur cardiaque',14:'Tensiomètre',15:'Périphérique HID',17:'Capteur course',18:'Capteur vélo',49:'Oxymètre',50:'Balance',51:'Véhicule de mobilité personnelle',81:'Capteur sport outdoor'};
+const MFR={a:'Apple',s:'Samsung'};
+
+/* Types : i=icône, n=nom, re=regex du nom, sv=services, ap=catégories d'apparence, p=réglages */
+const T={
+scooter:{i:'🛴',n:'Trottinette / véhicule électrique',re:/scoot|m365|ninebot|segway|xiaomi|kugoo|isc|i9|mobility|e-?bike|vélo|velo/i,sv:[],ap:[51],p:[['light','Phare / feux','toggle'],['lock','Verrouillage','toggle'],['mode','Mode de vitesse','choice',['Éco','Normal','Sport']],['cruise','Régulateur de vitesse','toggle'],['horn','Sonnette / klaxon','button']]},
+light:{i:'💡',n:'Lumière / ampoule / ruban LED',re:/led|lamp|light|bulb|strip|govee|elk|bledom|triones|happy|melk|hue|lum|rgb|ampoule/i,sv:['fff0'],ap:[],p:[['power','Allumer / éteindre','toggle'],['color','Couleur','color'],['bright','Luminosité','slider',0,100],['fx','Effet','choice',['Fixe','Pulsation','Arc-en-ciel']]]},
+speaker:{i:'🔊',n:'Haut-parleur',re:/speaker|boom|jbl|bose|soundcore|flip|sonos|marshall|haut-?parleur|echo|party|soundlink|clip/i,sv:['1843','184e'],ap:[],p:[['power','Marche / arrêt','toggle'],['vol','Volume','slider',0,100],['eq','Égaliseur','choice',['Normal','Basses','Voix']],['find','Faire sonner','find']]},
+headphones:{i:'🎧',n:'Casque / écouteurs',re:/airpod|buds|headphone|headset|wh-|wf-|earbud|jabra|casque|écouteur|ecouteur|pods/i,sv:[],ap:[],p:[['anc','Réduction de bruit','choice',['Désactivée','Réduction','Transparence']],['vol','Volume','slider',0,100],['find','Faire sonner','find']]},
+watch:{i:'⌚',n:'Montre / bracelet connecté',re:/watch|band|fitbit|garmin|amazfit|montre|whoop|oura|mi ?band/i,sv:[],ap:[3],p:[['hr','Fréquence cardiaque en direct','hr'],['find','Faire vibrer / sonner','find'],['notif','Envoyer une notification test','button']]},
+display:{i:'📺',n:'Écran / téléviseur / projecteur',re:/\btv\b|display|monitor|screen|écran|bravia|roku|chromecast|projector|lg ?webos|samsung ?\d/i,sv:[],ap:[5],p:[['power','Marche / arrêt','toggle'],['vol','Volume','slider',0,100],['src','Source','choice',['HDMI 1','HDMI 2','AV']],['bright','Luminosité','slider',0,100]]},
+tracker:{i:'🏷️',n:'Traceur / porte-clés',re:/tile|airtag|tag|tracker|chipolo|key|clé/i,sv:['1802','1803'],ap:[8,9],p:[['find','Faire sonner','find']]},
+hr:{i:'❤️',n:'Capteur de fréquence cardiaque',re:/hrm|heart|polar|h10|tickr/i,sv:['180d'],ap:[13],p:[['hr','Fréquence cardiaque en direct','hr']]},
+sport:{i:'🚴',n:'Capteur sport / vélo / tapis',re:/wahoo|kickr|cadence|zwift|treadmill|tapis|rouvy|cycl/i,sv:['1816','1818','1826','1814'],ap:[17,18,81],p:[]},
+health:{i:'🩺',n:'Capteur santé / environnement',re:/thermo|scale|balance|oximet|pression|bp ?\d|temp/i,sv:['1809','181a','1810','181d','1822'],ap:[12,14,49,50],p:[]},
+hid:{i:'⌨️',n:'Clavier / souris / manette',re:/keyboard|mouse|clavier|souris|trackpad|mx ?(keys|master)|gamepad|controller|joy-?con|dualshock|dualsense|xbox/i,sv:['1812'],ap:[15],p:[]},
+phone:{i:'📱',n:'Téléphone / ordinateur',re:/iphone|android|pixel|galaxy s|macbook|laptop|thinkpad|imac/i,sv:[],ap:[1,2],p:[]},
+remote:{i:'🎛️',n:'Télécommande',re:/remote|télécommande|clicker|rc\b/i,sv:[],ap:[6],p:[]},
+unknown:{i:'❓',n:'Appareil non identifié',re:null,sv:[],ap:[],p:[]}
+};
+/* Préréglage fréquent des rubans LED BLE génériques (non garanti) */
+const LED={s:'fff0',c:'fff3',power:{on:'7e0004f00001ff00ef',off:'7e000400000 0ff00ef'.replace(' ','')},color:{tpl:'7e000503{r}{g}{b}00ef'},bright:{tpl:'7e0001{v}00000000ef'}};
+const FIELDS={toggle:[['on','Commande ON (hex)'],['off','Commande OFF (hex)']],button:[['cmd','Commande (hex)']],slider:[['tpl','Modèle hex — utiliser {v}']],color:[['tpl','Modèle hex — utiliser {r} {g} {b}']]};
+
+/* ---------- État ---------- */
+let dev,srv,svcs=[],chars={},info={},typeId='unknown',scoreInfo=null;
+const log=m=>{const l=$('#log');l.textContent=new Date().toLocaleTimeString()+'  '+m+'\n'+l.textContent};
+let tt;const toast=m=>{const t=$('#toast');t.textContent=m;t.style.display='block';clearTimeout(tt);tt=setTimeout(()=>t.style.display='none',3200);log(m)};
+const errTxt=e=>e?((e.name||'Erreur')+(e.message?' — '+e.message:'')):'inconnue';
+window.addEventListener('error',e=>{try{$('#res').classList.remove('hid');log('Erreur JS : '+(e.message||'inconnue')+' (ligne '+e.lineno+')')}catch(_){}});
+window.addEventListener('unhandledrejection',e=>{try{$('#res').classList.remove('hid');log('Erreur : '+errTxt(e.reason))}catch(_){}});
+const setSt=(m,k)=>{const s=$('#st');s.textContent=m;s.className='pill '+(k||'')};
+
+/* ---------- Détection ---------- */
+function analyse(){
+  const names=[dev.name||'',info.name||''].join(' ');
+  const have=new Set(svcs.map(s=>short(s.uuid)));
+  const res=[];
+  for(const [id,t] of Object.entries(T)){
+    if(id==='unknown')continue;let sc=0;const ev=[];
+    if(info.cat&&t.ap.includes(info.cat)){sc+=6;ev.push('Catégorie officielle annoncée par l’appareil : '+(APP[info.cat]||info.cat))}
+    t.sv.forEach(s=>{if(have.has(s)){sc+=3;ev.push('Service présent : '+(SV[s]||s))}});
+    if(t.re&&t.re.test(names)){sc+=4;ev.push('Le nom « '+names.trim()+' » ressemble à ce type')}
+    if(info.model&&t.re&&t.re.test(info.model)){sc+=3;ev.push('Modèle : '+info.model)}
+    if(info.mfr&&t.re&&t.re.test(info.mfr)){sc+=2;ev.push('Fabricant : '+info.mfr)}
+    if(sc)res.push({id,sc,ev});
+  }
+  res.sort((a,b)=>b.sc-a.sc);
+  const best=res[0];
+  return best?{id:best.id,conf:Math.min(97,25+best.sc*9),ev:best.ev}:{id:'unknown',conf:0,ev:['Aucun indice exploitable : choisissez le type manuellement.']};
+}
+
+/* ---------- Connexion ---------- */
+async function scan(){
+  if(!navigator.bluetooth){return $('#warn').classList.remove('hid')}
+  const tries=[OPT,OPT.filter(x=>typeof x==='number'&&x<0x1900),[0x180a,0x180f],[]];dev=null;let last;
+  for(const o of tries){
+    try{dev=await navigator.bluetooth.requestDevice({acceptAllDevices:true,optionalServices:o});break}
+    catch(e){last=e;if(e.name==='NotFoundError'||e.name==='AbortError')return toast('Aucun appareil sélectionné.');log('Essai refusé ('+errTxt(e)+'), nouvel essai plus simple…')}
+  }
+  if(!dev)return toast('Erreur : '+errTxt(last));
+  dev.addEventListener('gattserverdisconnected',()=>{setSt('Déconnecté','wa');$('#disc').classList.add('hid');log('Appareil déconnecté')});
+  await connect();
+}
+async function connect(){
+  setSt('Connexion…','wa');
+  try{
+    srv=await dev.gatt.connect();
+    svcs=await srv.getPrimaryServices();chars={};info={};
+    for(const s of svcs){try{chars[s.uuid]=await s.getCharacteristics()}catch(e){chars[s.uuid]=[]}}
+    await readInfo();
+  }catch(e){return setSt('Échec','er'),toast('Connexion impossible : '+errTxt(e))}
+  setSt('Connecté','ok');$('#disc').classList.remove('hid');
+  const a=analyse();typeId=a.id;scoreInfo=a;render();
+}
+async function rd(s,c,fn){try{const ch=await (await srv.getPrimaryService(s)).getCharacteristic(c);return fn(await ch.readValue())}catch(e){return null}}
+const txt=v=>new TextDecoder().decode(v).replace(/\0/g,'').trim();
+async function readInfo(){
+  info.name=await rd('generic_access','gap.device_name',txt);
+  const ap=await rd('generic_access','gap.appearance',v=>v.getUint16(0,true));
+  if(ap!=null){info.ap=ap;info.cat=ap>>6}
+  info.mfr=await rd(0x180a,0x2a29,txt);info.model=await rd(0x180a,0x2a24,txt);
+  info.fw=await rd(0x180a,0x2a26,txt);info.hw=await rd(0x180a,0x2a27,txt);
+  info.sw=await rd(0x180a,0x2a28,txt);info.sn=await rd(0x180a,0x2a25,txt);
+  info.bat=await rd(0x180f,0x2a19,v=>v.getUint8(0));
+}
+
+/* ---------- Rendu ---------- */
+function render(){
+  const t=T[typeId];$('#res').classList.remove('hid');
+  $('#ico').textContent=t.i;$('#tn').textContent=t.n;
+  $('#dn').textContent='Nom Bluetooth : '+(dev.name||info.name||'(sans nom)');
+  $('#cf').textContent=scoreInfo.conf?scoreInfo.conf+' %':'—';$('#cb').style.width=scoreInfo.conf+'%';
+  $('#ev').innerHTML=scoreInfo.ev.map(e=>'<li>'+esc(e)+'</li>').join('');
+  $('#ov').innerHTML=Object.entries(T).map(([k,v])=>`<option value="${k}" ${k===typeId?'selected':''}>${v.i} ${v.n}</option>`).join('');
+  const rows=[['Nom annoncé',dev.name||'—'],['Nom interne',info.name||'—'],['Identifiant',dev.id],['Catégorie',info.cat!=null?(APP[info.cat]||'Code '+info.cat):'Non annoncée'],['Fabricant',info.mfr||'—'],['Modèle',info.model||'—'],['Numéro de série',info.sn||'—'],['Matériel',info.hw||'—'],['Firmware',info.fw||'—'],['Logiciel',info.sw||'—'],['Batterie',info.bat!=null?info.bat+' %':'Non disponible'],['Services',svcs.length+' détectés']];
+  $('#det').innerHTML=rows.map(([a,b])=>`<dt>${a}</dt><dd>${esc(b)}</dd>`).join('');
+  renderParams();renderChars();
+}
+$('#ov').onchange=e=>{typeId=e.target.value;scoreInfo={conf:100,ev:['Type choisi manuellement']};render()};
+
+/* ---------- Réglages adaptés au type ---------- */
+const key=id=>'bs:'+(dev?dev.id:'')+':'+id;
+const cfgGet=id=>{try{return JSON.parse(localStorage.getItem(key(id)))}catch(e){return null}};
+function cfgDefault(id){
+  if(typeId==='light'&&svcs.some(s=>short(s.uuid)==='fff0')&&LED[id]){const p=LED[id];return Object.assign({s:full(LED.s),c:full(LED.c)},p)}
+  return null;
+}
+function renderParams(){
+  const t=T[typeId],box=$('#par');$('#pt').textContent=t.n;box.innerHTML='';
+  if(info.bat!=null)box.append(card('🔋 Batterie',`<div class="bar"><i style="width:${info.bat}%"></i></div><div class="mu" style="margin-top:6px">${info.bat} %</div>`));
+  if(!t.p.length)box.append(card('Réglages','<span class="mu">Aucun réglage courant pour ce type d’appareil. Utilisez le mode avancé ci-dessous.</span>'));
+  for(const [id,label,kind,a,b] of t.p){
+    const c=document.createElement('div');c.className='par';
+    const head=`<div class="row sp"><b style="margin:0">${esc(label)}</b>${['hr','find'].includes(kind)?'':'<button data-cfg>⚙️</button>'}</div><div style="margin-top:10px" data-b></div>`;
+    c.innerHTML=head;const body=c.querySelector('[data-b]');
+    if(kind==='toggle')body.innerHTML='<label class="sw"><input type="checkbox"><span></span></label>',body.firstChild.firstChild.onchange=e=>run(id,kind,e.target.checked?'on':'off');
+    if(kind==='button'){body.innerHTML='<button>Envoyer</button>';body.firstChild.onclick=()=>run(id,kind,'cmd')}
+    if(kind==='slider'){body.innerHTML=`<input type="range" min="${a}" max="${b}" value="${Math.round((a+b)/2)}">`;body.firstChild.onchange=e=>run(id,kind,{v:+e.target.value})}
+    if(kind==='color'){body.innerHTML='<input type="color" value="#3b9eff">';body.firstChild.onchange=e=>{const h=e.target.value;run(id,kind,{r:parseInt(h.slice(1,3),16),g:parseInt(h.slice(3,5),16),b:parseInt(h.slice(5,7),16)})}}
+    if(kind==='choice'){body.innerHTML='<div class="row">'+a.map((o,i)=>`<button data-i="${i}">${esc(o)}</button>`).join('')+'</div>';body.querySelectorAll('button').forEach(x=>x.onclick=()=>run(id,kind,'o'+x.dataset.i))}
+    if(kind==='find'){body.innerHTML='<button>🔔 Lancer</button>';body.firstChild.onclick=find}
+    if(kind==='hr'){body.innerHTML='<div class="t" id="bpm">— bpm</div><button style="margin-top:8px">Démarrer</button>';body.querySelector('button').onclick=hr}
+    const g=c.querySelector('[data-cfg]');if(g)g.onclick=()=>config(id,label,kind,a);
+    box.append(c);
+  }
+}
+function card(t,h){const c=document.createElement('div');c.className='par';c.innerHTML='<b>'+t+'</b>'+h;return c}
+
+/* ---------- Envoi de commandes ---------- */
+function toBytes(h){h=h.replace(/[^0-9a-f]/gi,'');if(!h||h.length%2)throw new Error('Hex invalide');return Uint8Array.from(h.match(/../g).map(x=>parseInt(x,16)))}
+async function write(s,c,bytes){
+  const ch=await (await srv.getPrimaryService(s)).getCharacteristic(c);
+  if(ch.properties.writeWithoutResponse)await ch.writeValueWithoutResponse(bytes);else await ch.writeValue(bytes);
+}
+async function run(id,kind,arg){
+  if(!dev||!dev.gatt.connected)return toast('Appareil non connecté.');
+  let cfg=cfgGet(id)||cfgDefault(id);
+  if(!cfg||!cfg.s){return config(id,id,kind)}
+  try{
+    let h=kind==='slider'||kind==='color'?cfg.tpl:cfg[arg];
+    if(!h)return toast('Commande non configurée (⚙️).');
+    if(typeof arg==='object')for(const k in arg)h=h.replaceAll('{'+k+'}',hex2(arg[k]));
+    await write(cfg.s,cfg.c,toBytes(h));toast('Envoyé : '+h);
+  }catch(e){toast('Échec : '+e.message)}
+}
+async function find(){
+  try{await write(0x1802,0x2a06,Uint8Array.of(2));toast('Alerte envoyée.')}
+  catch(e){toast('Cet appareil ne supporte pas l’alerte (service 1802).')}
+}
+async function hr(){
+  try{const ch=await (await srv.getPrimaryService(0x180d)).getCharacteristic(0x2a37);
+    ch.addEventListener('characteristicvaluechanged',e=>{const v=e.target.value;$('#bpm').textContent=((v.getUint8(0)&1)?v.getUint16(1,true):v.getUint8(1))+' bpm'});
+    await ch.startNotifications();toast('Mesure démarrée.')}
+  catch(e){toast('Service cardiaque indisponible.')}
+}
+
+/* ---------- Fenêtre de configuration ---------- */
+function config(id,label,kind,opts){
+  const f=kind==='choice'?opts.map((o,i)=>['o'+i,'Commande « '+o+' »']):FIELDS[kind];
+  const cur=cfgGet(id)||cfgDefault(id)||{};
+  const sOpts=svcs.map(s=>`<option value="${s.uuid}" ${s.uuid===cur.s?'selected':''}>${esc(SV[short(s.uuid)]||short(s.uuid))}</option>`).join('');
+  $('#frm').innerHTML=`<h3 style="margin-top:0">⚙️ ${esc(label)}</h3>
+  <label>Service</label><select id="fs">${sOpts}</select>
+  <label>Caractéristique d’écriture</label><select id="fc"></select>
+  ${f.map(([k,l])=>`<label>${l}</label><input id="f_${k}" value="${esc(cur[k]||'')}" placeholder="ex. 7e0004f00001ff00ef" autocapitalize="off">`).join('')}
+  <div class="row" style="margin-top:14px"><button class="p" value="ok">Enregistrer</button><button value="x">Annuler</button></div>`;
+  const fill=()=>{const l=(chars[$('#fs').value]||[]).filter(c=>c.properties.write||c.properties.writeWithoutResponse);
+    $('#fc').innerHTML=l.map(c=>`<option value="${c.uuid}" ${c.uuid===cur.c?'selected':''}>${short(c.uuid)}</option>`).join('')||'<option value="">Aucune caractéristique inscriptible</option>'};
+  $('#fs').onchange=fill;fill();
+  $('#dlg').onclose=()=>{if($('#dlg').returnValue!=='ok')return;
+    const o={s:$('#fs').value,c:$('#fc').value};f.forEach(([k])=>o[k]=$('#f_'+k).value.trim());
+    localStorage.setItem(key(id),JSON.stringify(o));toast('Commande enregistrée.')};
+  $('#dlg').showModal();
+}
+
+/* ---------- Mode avancé ---------- */
+function renderChars(){
+  $('#chs').innerHTML=svcs.map(s=>{const k=short(s.uuid);
+    return `<div class="ch"><b>${esc(SV[k]||'Service inconnu')}</b> <code>${k}</code>`+(chars[s.uuid]||[]).map(c=>{
+      const p=Object.keys(c.properties).filter(x=>c.properties[x]).join(', ');
+      return `<div style="margin:6px 0 0 10px"><code>${short(c.uuid)}</code> <span class="mu">${p}</span>
+      <div class="row">${c.properties.read?`<button data-r="${s.uuid}|${c.uuid}">Lire</button>`:''}${c.properties.notify?`<button data-n="${s.uuid}|${c.uuid}">Notifications</button>`:''}${(c.properties.write||c.properties.writeWithoutResponse)?`<input size="14" placeholder="hex" id="w${c.uuid}"><button data-w="${s.uuid}|${c.uuid}">Écrire</button>`:''}</div></div>`}).join('')+'</div>'}).join('');
+  const g=(el,a)=>el.dataset[a].split('|');
+  document.querySelectorAll('[data-r]').forEach(b=>b.onclick=async()=>{const[s,c]=g(b,'r');try{const v=await (await (await srv.getPrimaryService(s)).getCharacteristic(c)).readValue();log(short(c)+' = '+[...new Uint8Array(v.buffer)].map(x=>hex2(x)).join('')+'  « '+txt(v)+' »')}catch(e){log('Lecture refusée')}});
+  document.querySelectorAll('[data-n]').forEach(b=>b.onclick=async()=>{const[s,c]=g(b,'n');try{const ch=await (await srv.getPrimaryService(s)).getCharacteristic(c);ch.addEventListener('characteristicvaluechanged',e=>log('↘ '+short(c)+' '+[...new Uint8Array(e.target.value.buffer)].map(x=>hex2(x)).join('')));await ch.startNotifications();log('Notifications actives sur '+short(c))}catch(e){log('Notifications impossibles')}});
+  document.querySelectorAll('[data-w]').forEach(b=>b.onclick=async()=>{const[s,c]=g(b,'w');try{await write(s,c,toBytes(document.getElementById('w'+c).value));log('Écrit sur '+short(c))}catch(e){log('Écriture : '+e.message)}});
+}
+
+$('#scan').onclick=scan;
+$('#disc').onclick=()=>dev&&dev.gatt.connected&&dev.gatt.disconnect();
+if(!navigator.bluetooth){const w=$('#warn');w.classList.remove('hid');w.innerHTML='⚠️ Le Bluetooth Web n’est pas disponible dans ce navigateur. Sur iPhone/iPad, ouvrez cette page dans <b>Bluefy</b>. Sur Android ou ordinateur, utilisez <b>Chrome</b> ou <b>Edge</b>. La page doit être en HTTPS (Netlify le fait automatiquement).'}
+</script>
+</body>
+</html>
